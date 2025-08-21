@@ -47,7 +47,7 @@ class WebSocketManager {
                     this.url = this.url + (hasQuery2 ? '&' : '?') + 'model=' + encodeURIComponent(chosenModel);
                 }
             } catch (e) {
-                console.warn('⚠️ 解析页面 msid 失败，将不透传:', e);
+                console.warn('⚠️ 解析页面参数失败:', e);
             }
             this.isInitialized = true;
             
@@ -252,4 +252,4 @@ class WebSocketManager {
     isConnected() {
         return this.ws && this.ws.readyState === WebSocket.OPEN;
     }
-} 
+}

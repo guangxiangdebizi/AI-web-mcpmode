@@ -108,8 +108,10 @@ class ChatDatabase:
             async with aiosqlite.connect(self.db_path) as db:
                 # 确保session存在
                 await db.execute("""
-                    INSERT OR IGNORE INTO chat_sessions (session_id) VALUES (?)
-                """, (session_id,))
+                    INSERT INTO chat_sessions (session_id)
+                    SELECT ?
+                    WHERE NOT EXISTS (SELECT 1 FROM chat_sessions WHERE session_id = ?)
+                """, (session_id, session_id))
                 
                 # 获取下一个conversation_id
                 cursor = await db.execute("""
@@ -176,6 +178,36 @@ class ChatDatabase:
             print(f"❌ 保存对话记录失败: {e}")
             return False
 
+    async def get_threads_all(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """返回所有对话线程列表（按 session_id + conversation_id 分组）。"""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                cursor = await db.execute(
+                    """
+                    SELECT session_id, conversation_id,
+                           MIN(created_at) AS first_time,
+                           MAX(created_at) AS last_time,
+                           COUNT(*) AS message_count,
+                           COALESCE(
+                               (SELECT user_input FROM chat_records cr2 
+                                WHERE cr2.session_id = cr.session_id AND cr2.conversation_id = cr.conversation_id 
+                                ORDER BY cr2.created_at ASC LIMIT 1),
+                               ''
+                           ) AS first_user_input
+                    FROM chat_records cr
+                    GROUP BY session_id, conversation_id
+                    ORDER BY last_time DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
+                rows = await cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in rows]
+        except Exception as e:
+            print(f"❌ 获取所有线程列表失败: {e}")
+            return []
+    
     async def get_threads_by_msid(self, msid: int, limit: int = 100) -> List[Dict[str, Any]]:
         """按 msid 返回线程列表（每个线程对应一组 session_id+conversation_id）。"""
         try:

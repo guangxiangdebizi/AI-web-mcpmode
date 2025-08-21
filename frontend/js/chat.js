@@ -176,8 +176,9 @@ class ChatApp {
         try {
             const urlParams = new URLSearchParams(window.location.search || '');
             const msid = urlParams.get('msid');
-            if (!msid) return;
-            const apiUrl = window.configManager.getFullApiUrl(`/api/threads?msid=${encodeURIComponent(msid)}`);
+            const apiUrl = window.configManager.getFullApiUrl(
+                msid ? `/api/threads?msid=${encodeURIComponent(msid)}` : `/api/threads`
+            );
             const res = await fetch(apiUrl, { cache: 'no-store' });
             const json = await res.json();
             if (!json.success) return;

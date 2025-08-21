@@ -410,12 +410,15 @@ async def get_history(limit: int = 50, session_id: str = "default", conversation
         raise HTTPException(status_code=500, detail=f"获取历史记录失败: {str(e)}")
 
 @app.get("/api/threads")
-async def get_threads(msid: int, limit: int = 100):
-    """按 msid 获取对话线程列表（左侧侧栏用）。"""
+async def get_threads(msid: int = None, limit: int = 100):
+    """获取对话线程列表：如果提供 msid 则按 msid 过滤，否则返回所有线程（左侧侧栏用）。"""
     if not chat_db:
         raise HTTPException(status_code=503, detail="数据库未初始化")
     try:
-        threads = await chat_db.get_threads_by_msid(msid=msid, limit=limit)
+        if msid is not None:
+            threads = await chat_db.get_threads_by_msid(msid=msid, limit=limit)
+        else:
+            threads = await chat_db.get_threads_all(limit=limit)
         return {"success": True, "data": threads}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取线程列表失败: {str(e)}")
