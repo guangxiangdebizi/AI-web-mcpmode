@@ -307,7 +307,6 @@ class WebMCPAgent:
             self.server_configs = mcp_config.get("servers", {})
 
             # 允许没有外部MCP服务器
-            # 允许没有外部MCP服务器
             if not self.server_configs:
                 print("⚠️ 没有配置外部MCP服务器")
                 self.server_configs = {}
@@ -416,24 +415,16 @@ class WebMCPAgent:
         current_date = now.strftime("%Y年%m月%d日")
         current_weekday = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][now.weekday()]
         return (
-            f"今天是 {current_date}（{current_weekday}）。你是一个有用、无害、诚实的AI助手。\n"
-            "- 你可以使用可用的工具来帮助用户解决问题。\n"
-            "- 当用户的问题需要获取实时信息、执行特定操作或使用外部服务时，请使用合适的工具。\n"
-            "- 对于一般性问题、知识性问题或不需要工具的问题，请直接回答。\n"
-            "- 如果决定使用工具，请只输出 tool_calls，不要同时输出自然语言回答。\n"
-            "- 如果决定不使用工具，请提供有帮助的中文回答。\n"
-            f"今天是 {current_date}（{current_weekday}）。你是一个工具调度器。" + "\n" +
-            "- 默认不调用工具。只有在确实需要使用工具获取信息时才调用。" + "\n" +
-            "- 优先直接回答：对纯推理/常识/总结类请求不要调用工具。" + "\n" +
-            "- 不要无节制的调用工具，除非用户明确要求。" + "\n" +
-            "- 根据可用工具选择合适的工具来完成任务。" + "\n" +
-            "- 不要为'尝试/验证'而随意调用工具；若信息不足，返回不调用工具。" + "\n" +
-            "- 仅在确有必要时，通过 tool_calls 给出函数名与'合法 JSON'参数；不要输出其他内容。" + "\n"
+            f"""今天是 {current_date}（{current_weekday}）。你是一个工具调度器。
+            默认不调用工具。只有在确实需要使用工具获取信息时才调用。
+            优先直接回答：对纯推理/常识/总结类请求不要调用工具。
+            不要无节制的调用工具，除非用户明确要求。
+            根据可用工具选择合适的工具来完成任务。
+            不要为'尝试/验证'而随意调用工具；若信息不足，返回不调用工具。
+            仅在确有必要时，通过 tool_calls 给出函数名与'合法 JSON'参数；不要输出其他内容。"""
         )
 
     def _get_stream_system_prompt(self) -> str:
-        """保持接口以兼容旧调用，但当前不再使用流式回答提示词。"""
-        return ""
         """保持接口以兼容旧调用，但当前不再使用流式回答提示词。"""
         return ""
 
@@ -495,7 +486,6 @@ class WebMCPAgent:
             shared_history.append({"role": "user", "content": user_input})
 
             max_rounds = 25
-            max_rounds = 25
             round_index = 0
             # 合并两阶段输出为同一条消息：在整个会话回答期间仅发送一次 start，最后一次性 end
             combined_response_started = False
@@ -547,9 +537,7 @@ class WebMCPAgent:
                                 content_preview = ""
                 except Exception as e:
                     print(f"⚠️ 工具判定(流式)失败：{e}")
-                    print(f"⚠️ 工具判定(流式)失败：{e}")
                     tool_calls_check = None
-                    content_preview = ""
                     content_preview = ""
 
                 if tool_calls_check:
@@ -569,7 +557,6 @@ class WebMCPAgent:
                             "tool_calls": tool_calls_to_run
                         })
                     except Exception:
-                        shared_history.append({"role": "assistant", "content": ""})
                         shared_history.append({"role": "assistant", "content": ""})
 
                     # 执行工具（非流式）
@@ -657,13 +644,6 @@ class WebMCPAgent:
                     yield {"type": "ai_response_end", "content": ""}
                 return
 
-            # 轮次耗尽：直接返回提示信息
-            print(f"⚠️ 达到最大推理轮数({max_rounds})，直接返回提示信息")
-            final_text = "已达到最大推理轮数，请缩小问题范围或稍后重试。"
-            yield {"type": "ai_response_start", "content": "AI正在回复..."}
-            yield {"type": "ai_response_chunk", "content": final_text}
-            yield {"type": "ai_response_end", "content": final_text}
-            return
             # 轮次耗尽：直接返回提示信息
             print(f"⚠️ 达到最大推理轮数({max_rounds})，直接返回提示信息")
             final_text = "已达到最大推理轮数，请缩小问题范围或稍后重试。"
