@@ -141,49 +141,19 @@ manager = ConnectionManager()
 async def websocket_chat(websocket: WebSocket):
     """WebSocket聊天接口"""
     session_id = await manager.connect(websocket)
-    # 从连接查询参数中读取 msid 与 model 并保存到会话上下文（后端隐藏使用，不回传给前端）
+    # 记录模型档位（如果提供）
     try:
         print(f"🔍 WebSocket 查询参数: {dict(websocket.query_params)}")
-        msid_param = websocket.query_params.get("msid")
         model_param = websocket.query_params.get("model")
-        print(f"🔍 提取的 msid 参数: {msid_param}")
-        print(f"🔍 提取的 model 参数: {model_param}")
-        if msid_param is not None and msid_param != "":
-            try:
-                msid_value = int(msid_param)
-                if not hasattr(mcp_agent, 'session_contexts'):
-                    mcp_agent.session_contexts = {}
-                mcp_agent.session_contexts[session_id] = {"msid": msid_value}
-                print(f"🔐 已为会话 {session_id} 记录 msid={msid_value}")
-                print(f"🔍 当前所有会话上下文: {mcp_agent.session_contexts}")
-            except Exception as e:
-                print(f"⚠️ 解析 msid 失败: {e}")
-                # 非法 msid 忽略
-                if not hasattr(mcp_agent, 'session_contexts'):
-                    mcp_agent.session_contexts = {}
-                mcp_agent.session_contexts[session_id] = {}
-        else:
-            print(f"⚠️ msid 参数为空或不存在")
-            if not hasattr(mcp_agent, 'session_contexts'):
-                mcp_agent.session_contexts = {}
-            mcp_agent.session_contexts[session_id] = {}
-
-        # 记录模型档位（如果提供）
-        try:
-            if model_param is not None and model_param != "":
-                if not hasattr(mcp_agent, 'session_contexts'):
-                    mcp_agent.session_contexts = {}
-                session_ctx = mcp_agent.session_contexts.get(session_id, {})
-                session_ctx["model"] = str(model_param)
-                mcp_agent.session_contexts[session_id] = session_ctx
-                print(f"🔐 已为会话 {session_id} 记录 model={model_param}")
-        except Exception as e:
-            print(f"⚠️ 记录 model 失败: {e}")
-    except Exception as _e:
-        print(f"❌ 处理 msid 参数异常: {_e}")
         if not hasattr(mcp_agent, 'session_contexts'):
             mcp_agent.session_contexts = {}
-        mcp_agent.session_contexts[session_id] = {}
+        session_ctx = mcp_agent.session_contexts.get(session_id, {})
+        if model_param:
+            session_ctx["model"] = str(model_param)
+            print(f"🔐 已为会话 {session_id} 记录 model={model_param}")
+        mcp_agent.session_contexts[session_id] = session_ctx
+    except Exception as _e:
+        print(f"⚠️ 记录 model 失败: {_e}")
     
     try:
         while True:
@@ -307,8 +277,7 @@ async def websocket_chat(websocket: WebSocket):
                                 mcp_tools_called=conversation_data["mcp_tools_called"],
                                 mcp_results=conversation_data["mcp_results"],
                                 ai_response=ai_response,
-                                session_id=current_session_id,
-                                msid=mcp_agent.session_contexts.get(current_session_id, {}).get("msid") if hasattr(mcp_agent, 'session_contexts') else None
+                                session_id=current_session_id
                             )
                             if success:
                                 print(f"✅ 对话记录保存成功")
@@ -410,15 +379,12 @@ async def get_history(limit: int = 50, session_id: str = "default", conversation
         raise HTTPException(status_code=500, detail=f"获取历史记录失败: {str(e)}")
 
 @app.get("/api/threads")
-async def get_threads(msid: int = None, limit: int = 100):
-    """获取对话线程列表：如果提供 msid 则按 msid 过滤，否则返回所有线程（左侧侧栏用）。"""
+async def get_threads(limit: int = 100):
+    """获取对话线程列表（返回所有线程，按更新时间倒序）。"""
     if not chat_db:
         raise HTTPException(status_code=503, detail="数据库未初始化")
     try:
-        if msid is not None:
-            threads = await chat_db.get_threads_by_msid(msid=msid, limit=limit)
-        else:
-            threads = await chat_db.get_threads_all(limit=limit)
+        threads = await chat_db.get_threads_all(limit=limit)
         return {"success": True, "data": threads}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取线程列表失败: {str(e)}")

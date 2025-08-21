@@ -48,7 +48,6 @@ class ChatDatabase:
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         session_id TEXT DEFAULT 'default',
                         conversation_id INTEGER,
-                        msid INTEGER,
                         
                         -- 用户输入
                         user_input TEXT,
@@ -68,21 +67,12 @@ class ChatDatabase:
                         FOREIGN KEY (session_id) REFERENCES chat_sessions(session_id)
                     )
                 """)
-                # 兼容旧库：尝试补充 msid 列
-                try:
-                    await db.execute("ALTER TABLE chat_records ADD COLUMN msid INTEGER")
-                except Exception:
-                    pass
-                
                 # 创建索引以提高查询性能
                 await db.execute("""
                     CREATE INDEX IF NOT EXISTS idx_chat_records_session 
                     ON chat_records(session_id)
                 """)
-                await db.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_chat_records_msid 
-                    ON chat_records(msid)
-                """)
+                # msid index removed
                 
                 await db.execute("""
                     CREATE INDEX IF NOT EXISTS idx_chat_records_conversation 
@@ -134,8 +124,7 @@ class ChatDatabase:
         mcp_results: List[Dict[str, Any]] = None,
         ai_response: str = "",
         session_id: str = "default",
-        conversation_id: int = None,
-        msid: int = None,
+        conversation_id: int = None
     ) -> bool:
         """保存完整的对话记录
         
@@ -158,13 +147,13 @@ class ChatDatabase:
                 
                 await db.execute("""
                     INSERT INTO chat_records (
-                        session_id, conversation_id, msid,
+                        session_id, conversation_id,
                         user_input, user_timestamp,
                         mcp_tools_called, mcp_results,
                         ai_response, ai_timestamp
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    session_id, conversation_id, msid,
+                    session_id, conversation_id,
                     user_input, datetime.now().isoformat(),
                     mcp_tools_json, mcp_results_json,
                     ai_response, datetime.now().isoformat()
@@ -208,36 +197,6 @@ class ChatDatabase:
             print(f"❌ 获取所有线程列表失败: {e}")
             return []
     
-    async def get_threads_by_msid(self, msid: int, limit: int = 100) -> List[Dict[str, Any]]:
-        """按 msid 返回线程列表（每个线程对应一组 session_id+conversation_id）。"""
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                cursor = await db.execute(
-                    """
-                    SELECT session_id, conversation_id,
-                           MIN(created_at) AS first_time,
-                           MAX(created_at) AS last_time,
-                           COUNT(*) AS message_count,
-                           COALESCE(
-                               (SELECT user_input FROM chat_records cr2 
-                                WHERE cr2.session_id = cr.session_id AND cr2.conversation_id = cr.conversation_id 
-                                ORDER BY cr2.created_at ASC LIMIT 1),
-                               ''
-                           ) AS first_user_input
-                    FROM chat_records cr
-                    WHERE msid = ?
-                    GROUP BY session_id, conversation_id
-                    ORDER BY last_time DESC
-                    LIMIT ?
-                    """,
-                    (msid, limit),
-                )
-                rows = await cursor.fetchall()
-                columns = [desc[0] for desc in cursor.description]
-                return [dict(zip(columns, row)) for row in rows]
-        except Exception as e:
-            print(f"❌ 获取线程列表失败: {e}")
-            return []
     
     async def get_chat_history(
         self, 

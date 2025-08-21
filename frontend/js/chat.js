@@ -116,7 +116,7 @@ class ChatApp {
                 const isOpen = sidebar.classList.toggle('open');
                 // 打开时刷新；关闭时不动
                 if (isOpen) {
-                    await this.loadThreadsByMsidFromUrl();
+                    await this.loadThreads();
                 }
                 // 可选：按钮文案提示
                 this.openSidebarBtn.textContent = isOpen ? '历史记录 (已展开)' : '历史记录';
@@ -168,17 +168,13 @@ class ChatApp {
         this.showLoading('Connecting to server...');
         this.updateConnectionStatus('connecting');
         await this.wsManager.connect();
-        // 加载左侧线程列表（如果URL中有msid）
-        this.loadThreadsByMsidFromUrl();
+        // 加载左侧线程列表
+        this.loadThreads();
     }
 
-    async loadThreadsByMsidFromUrl() {
+    async loadThreads() {
         try {
-            const urlParams = new URLSearchParams(window.location.search || '');
-            const msid = urlParams.get('msid');
-            const apiUrl = window.configManager.getFullApiUrl(
-                msid ? `/api/threads?msid=${encodeURIComponent(msid)}` : `/api/threads`
-            );
+            const apiUrl = window.configManager.getFullApiUrl(`/api/threads`);
             const res = await fetch(apiUrl, { cache: 'no-store' });
             const json = await res.json();
             if (!json.success) return;

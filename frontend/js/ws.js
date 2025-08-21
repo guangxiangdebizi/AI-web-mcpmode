@@ -32,22 +32,15 @@ class WebSocketManager {
             
             // 获取WebSocket URL
             this.url = window.configManager.getSmartWebSocketUrl('/ws/chat');
-            // 将页面 URL 的 msid 透传到 WebSocket 连接
             try {
-                const urlParams = new URLSearchParams(window.location.search || '');
-                const msid = urlParams.get('msid');
-                if (msid) {
-                    const hasQuery = this.url.includes('?');
-                    this.url = this.url + (hasQuery ? '&' : '?') + 'msid=' + encodeURIComponent(msid);
-                }
                 // 透传模型档位（若有选择）
                 const chosenModel = localStorage.getItem('mcp_selected_model');
                 if (chosenModel) {
-                    const hasQuery2 = this.url.includes('?');
-                    this.url = this.url + (hasQuery2 ? '&' : '?') + 'model=' + encodeURIComponent(chosenModel);
+                    const hasQuery = this.url.includes('?');
+                    this.url = this.url + (hasQuery ? '&' : '?') + 'model=' + encodeURIComponent(chosenModel);
                 }
             } catch (e) {
-                console.warn('⚠️ 解析页面参数失败:', e);
+                console.warn('⚠️ 处理连接参数失败:', e);
             }
             this.isInitialized = true;
             
