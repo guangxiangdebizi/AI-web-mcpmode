@@ -236,7 +236,7 @@ class WebMCPAgent:
                 timeout=cfg.get("timeout", self.timeout),
                 max_retries=3,
             )
-            llm_tools = base_llm.bind_tools(self.tools)
+            llm_tools = base_llm.bind_tools(self.tools) if self.tools else base_llm
         finally:
             # 还原环境，避免影响其他逻辑
             if prev_key is not None:
@@ -390,7 +390,7 @@ class WebMCPAgent:
             print(f"📊 服务器分组情况: {dict((name, len(tools)) for name, tools in self.tools_by_server.items())}")
 
             # 创建工具判定实例（默认档位），其余档位在第一次使用时按需创建
-            self.llm_tools = base_llm.bind_tools(self.tools)
+            self.llm_tools = base_llm.bind_tools(self.tools) if self.tools else base_llm
 
             print("🤖 Web MCP智能助手已启动！")
             return True
@@ -629,19 +629,27 @@ class WebMCPAgent:
                 # 若先前已经流式输出过片段，则此处不再把所有片段再发一次，只发送结束标记；
                 # 若此前尚未开始（无流式片段），则一次性发送最终文本再结束。
                 final_text = "".join(buffered_chunks) if buffered_chunks else (content_preview or "")
-                if combined_response_started:
-                    # 已经开始过，避免重复内容
-                    yield {"type": "ai_response_end", "content": ""}
-                else:
+                # 回退：若未产出任何内容（例如工具判定阶段报错），使用无工具实例生成一次最终回复
+                if not final_text:
+                    try:
+                        fallback_messages = [{"role": "system", "content": "你是一个有帮助的助手。"}] + shared_history
+                        fallback_llm = llm_bundle.get("llm_nontool", self.llm)
+                        resp = await fallback_llm.ainvoke(fallback_messages)
+                        final_text = getattr(resp, "content", None) or str(resp)
+                    except Exception as _fe:
+                        print(f"⚠️ 非工具回退生成失败: {_fe}")
+                        final_text = ""
+
+                if not combined_response_started:
                     yield {"type": "ai_response_start", "content": "AI正在回复..."}
                     combined_response_started = True
-                    if final_text:
-                        try:
-                            print(f"📤 [最终回复流] {final_text}")
-                        except Exception:
-                            pass
-                        yield {"type": "ai_response_chunk", "content": final_text}
-                    yield {"type": "ai_response_end", "content": ""}
+                if final_text:
+                    try:
+                        print(f"📤 [最终回复流] {final_text}")
+                    except Exception:
+                        pass
+                    yield {"type": "ai_response_chunk", "content": final_text}
+                yield {"type": "ai_response_end", "content": ""}
                 return
 
             # 轮次耗尽：直接返回提示信息
